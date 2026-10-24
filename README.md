@@ -80,7 +80,7 @@ supported with "limited features".
 
 **Qwen/Qwen2.5-0.5B-Instruct.** An `instruct` model that is not gated and fits the budget: the
 Docker VM has 7.4 GB RAM shared with other workloads, the Minikube node gets 4.5 GB, and the
-service needs about 3.3 GB resident (bf16 weights 1 GB, API server 0.8 GB, engine core 0.5 GB,
+service needs 3.3-3.6 GB resident (bf16 weights 1 GB, API server 0.8 GB, engine core 0.5 GB,
 KV cache, runtime). The 1.5B model from the task text would need about 2 GB more for the weights alone. The model
 revision is pinned to a commit sha (`7ae557604adf67be50417f59c2c2f167def9a775`) in
 [`configmap-env.yaml`](k8s/base/configmap-env.yaml). Any other model is a ConfigMap change
@@ -141,7 +141,7 @@ curl -s http://127.0.0.1:18000/v1/chat/completions \
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18000/v1/models                      # 401 without a token
 
 # 6. automated checks: auth, inference, error paths, privacy (canary strings in logs)
-scripts/verify-deployment.sh
+scripts/verify-deployment.sh   # PORT=... NS=... change the local port / namespace
 ```
 
 Git Bash on Windows: if a path such as `/models` gets rewritten, prefix the command with
@@ -226,7 +226,7 @@ So the protection is layered instead of relying on a flag staying off:
 Example line (real output):
 
 ```
-(APIServer pid=10) INFO 10-24 07:08:03 [reqlog.py:188] request_id=req-1aaed0497e114d4a method=POST route=/v1/chat/completions status=200 outcome=ok latency_ms=1077.4 ttfb_ms=988.6 req_bytes=188 resp_bytes=1329 client=127.0.0.1 stream=true engine_id=chatcmpl-9c66dba4b53d696d model=qwen2.5-0.5b-instruct prompt_tokens=24 completion_tokens=16
+(APIServer pid=10) INFO 10-24 08:18:21 [reqlog.py:201] request_id=req-bec89100229840ad method=POST route=/v1/chat/completions status=200 outcome=ok latency_ms=6955.9 ttfb_ms=2524.3 req_bytes=349 resp_bytes=22236 client=127.0.0.1 stream=true engine_id=chatcmpl-8317c8ee8df4a15a model=qwen2.5-0.5b-instruct prompt_tokens=69 completion_tokens=64
 ```
 
 Evidence ([`VERIFICATION.md`](VERIFICATION.md)): `scripts/verify-deployment.sh` sends unique
@@ -234,7 +234,7 @@ canary strings in the prompt, in `stop`, in malformed/invalid payloads and in th
 the model to echo a canary, aborts a stream, and then greps the logs of all containers (and
 `--previous`). It passes with the default config **and** with
 `k8s/overlays/privacy-stress` (vLLM request/output logging and DEBUG forced on through the
-ConfigMaps; the filter suppressed 67 records in that run). As a **negative control**, the same
+ConfigMaps; the filter suppressed 75 records in the clean run). As a **negative control**, the same
 test with the privacy log config removed (`VLLM_LOGGING_CONFIG_PATH=`) fails: stock vLLM prints
 the JSON body, the rendered prompt, the sampling parameters and the output text.
 
@@ -313,6 +313,25 @@ the first; token counts come from the server's `usage`, not from estimates. Prof
 
 n = 6-24 requests per row, so p95 is approximate. Throughput columns are over the whole level
 (wall time), `in tok/s` counts prompt tokens.
+
+The same command was repeated after the whole cluster had been deleted and rebuilt from the README
+(`loadtest/results/run2-rebuilt-cluster.json`); the numbers agree within about 15%:
+
+| profile | conc | reqs (ok/fail) | TTFT p50 (ms) | TTFT p95 (ms) | latency p50 (ms) | out tok/s | in tok/s |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| short | 1 | 6/0 | 1284 | 1349 | 5365 | 12.2 | 13.3 |
+| short | 2 | 6/0 | 2269 | 3024 | 10126 | 12.1 | 13.4 |
+| short | 4 | 12/0 | 3888 | 5883 | 14877 | 16.6 | 18.0 |
+| short | 8 | 24/0 | 9774 | 10364 | 26033 | 19.7 | 21.4 |
+| long | 1 | 6/0 | 18255 | 18989 | 20171 | 1.7 | 53.9 |
+| long | 2 | 6/0 | 27352 | 37348 | 39943 | 1.6 | 52.1 |
+| long | 4 | 12/0 | 54467 | 71760 | 78579 | 1.6 | 52.9 |
+
+The long profile at concurrency 8 is missing from this second run: Docker Desktop on the host went
+down while that level was running (the first run completed it, see the table above). The cause was
+not established; it happened once earlier at a similarly heavy stage, so memory pressure on the
+shared Docker VM is suspected, not proven. If RAM is tight, lower `max-num-seqs` or the client
+concurrency.
 
 Reading the table: the engine is compute-bound. Prompt processing runs at a constant ~50 tokens/s
 and generation saturates at ~18 tokens/s whatever the concurrency, so extra concurrency only
@@ -407,7 +426,7 @@ Things that are not obvious from the docs and cost time; each was reproduced.
    limit and a cold cache the start failed with
    `Available memory on node 0 (0.19/4.0 GiB) ... is less than requested memory for kv (0.25 GiB)`
    although only ~2.9 GiB was really in use. The Deployment therefore uses a 5 GiB limit
-   (3 GiB request); resident memory is ~3.3 GiB.
+   (3 GiB request); resident memory is 3.3-3.6 GiB.
 5. **bf16 on AVX2 is slow** (oneDNN cannot build the bf16 matmul and torch falls back),
    see the sweep. `fp32` is 4x faster in prefill.
 6. `enforce-eager` (no torch.compile/inductor) is used: it avoids a long compile with another
@@ -418,8 +437,10 @@ Things that are not obvious from the docs and cost time; each was reproduced.
 
 * CPU throughput is low by design (see the table); the numbers are for a laptop-class CPU under
   Docker/WSL2, not a server.
-* The Minikube node is smaller than the pod's memory limit on purpose (explained in finding 4);
-  on a real cluster set requests/limits for your node size.
+* The Minikube node is smaller than the pod's memory limit on purpose (explained in finding 4).
+  Docker enforces the node container's 4.5 GB (`docker inspect vllm-test`), but the kubelet reports
+  the whole Docker VM (7.4 GB) as capacity, so Kubernetes does not know the real ceiling. The pod
+  uses about 3.8 GiB of the 4.4 GiB available. On a real cluster set requests/limits for your node size.
 * `VLLM_CPU_OMP_THREADS_BIND=0,2,4,6,8` assumes the 8-core/16-thread layout above; use `auto` or
   adjust on other hardware.
 * One replica only: the model cache and JIT cache PVCs are `ReadWriteOnce`.

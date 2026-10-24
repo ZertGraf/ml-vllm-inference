@@ -44,7 +44,11 @@ post() { # outfile, body, [extra curl args...]; echoes the HTTP code
 kubectl -n "${NS}" port-forward svc/vllm "${PORT}:8000" >"${TMP}/pf.log" 2>&1 &
 PF=$!
 trap 'kill ${PF} 2>/dev/null; rm -rf "${TMP}"' EXIT
-for _ in $(seq 1 30); do curl -s -o /dev/null "${BASE}/health" && break; sleep 1; done
+for _ in $(seq 1 30); do
+  kill -0 "${PF}" 2>/dev/null || { echo "port-forward failed (is port ${PORT} in use? set PORT=...):"; cat "${TMP}/pf.log"; exit 2; }
+  curl -s -m 3 -o /dev/null "${BASE}/health" && break
+  sleep 1
+done
 
 echo "== authentication"
 expect_code "GET /health without token (public, used by probes)" 200 \
