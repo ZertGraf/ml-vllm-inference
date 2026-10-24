@@ -615,7 +615,7 @@ checks it. Output of that check (run on the zip built from the commit preceding 
 only by this section):
 
 ```text
-zip: 252K, 48 files
+zip: 252K, 49 files
 PASS  present: README.md
 PASS  present: VERIFICATION.md
 PASS  present: docker/vllm/Dockerfile
