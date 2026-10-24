@@ -1,0 +1,4 @@
+{"dtype": "bfloat16", "max_num_seqs": 16, "max_num_batched_tokens": 2048, "omp_threads_bind": "0,2,4,6,8", "prefill_prompt_tokens": 833, "prefill_tok_s": 68.5, "decode_tok_s": {"1": 12.6, "4": 23.6, "8": 28.8, "16": 29.5}}
+{"dtype": "float32", "max_num_seqs": 16, "max_num_batched_tokens": 2048, "omp_threads_bind": "0,2,4,6,8", "prefill_prompt_tokens": 833, "prefill_tok_s": 252.6, "decode_tok_s": {"1": 7.7, "4": 28.4, "8": 47.2, "16": 74.6}}
+{"dtype": "bfloat16", "max_num_seqs": 16, "max_num_batched_tokens": 2048, "omp_threads_bind": "0,2,4,6,8,10,12", "prefill_prompt_tokens": 833, "prefill_tok_s": 66.3, "decode_tok_s": {"1": 14.0, "4": 26.2, "8": 29.3, "16": 30.3}}
+{"dtype": "float32", "max_num_seqs": 16, "max_num_batched_tokens": 2048, "omp_threads_bind": "0,2,4,6,8,10,12", "prefill_prompt_tokens": 833, "prefill_tok_s": 278.6, "decode_tok_s": {"1": 8.1, "4": 29.3, "8": 49.7, "16": 79.6}}

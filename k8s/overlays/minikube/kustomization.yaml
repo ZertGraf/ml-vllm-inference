@@ -1,0 +1,39 @@
+# Overlay for a local Minikube cluster:
+#   kubectl apply -k k8s/overlays/minikube
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+
+# Secrets are generated from a git-ignored env file; create it with
+# scripts/make-secrets.sh (see secrets.env.example for the format).
+# kustomize appends a content hash to the name and rewrites the references, so
+# changing a token also rolls the pod.
+secretGenerator:
+  - name: vllm-secrets
+    namespace: vllm
+    envs:
+      - secrets.env
+    options:
+      labels:
+        app.kubernetes.io/part-of: vllm-inference
+
+# Images are built locally and loaded into the cluster (`minikube image load`),
+# so they must never be pulled from a registry.
+patches:
+  - target:
+      kind: Deployment
+      name: vllm
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+      - op: replace
+        path: /spec/template/spec/initContainers/0/imagePullPolicy
+        value: Never
+      # the Minikube node (6 CPU / 4.5 GB) is smaller than the memory limit on
+      # purpose: only anonymous memory (~3.2 GiB) is really needed, the rest of
+      # the limit is page cache that the kernel reclaims under node pressure
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 2560Mi

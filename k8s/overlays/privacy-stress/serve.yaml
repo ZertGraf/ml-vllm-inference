@@ -1,0 +1,28 @@
+# Copy of k8s/base/configmap-serve.yaml (serve.yaml) with content logging forced ON.
+host: 0.0.0.0
+port: 8000
+served-model-name: qwen2.5-0.5b-instruct
+
+# --- CPU inference
+dtype: bfloat16
+max-model-len: 4096
+max-num-seqs: 8
+max-num-batched-tokens: 2048
+# KV cache in bytes (256 MiB = ~21k tokens for this model). The legacy
+# VLLM_CPU_KVCACHE_SPACE variable only takes whole GiB.
+kv-cache-memory-bytes: 268435456
+# no torch.compile/inductor on CPU: avoids a long start and extra memory
+enforce-eager: true
+
+# --- logging / privacy
+# content-free per-request log line + deny-by-default Bearer auth (see README)
+middleware: vllm_hardening.stack.HardeningMiddleware
+# token usage in every response, including streams (read by the request log)
+enable-force-include-usage: true
+# the middleware logs requests; uvicorn's access log would duplicate it
+disable-uvicorn-access-log: true
+# STRESS TEST: vLLM's own content logging forced ON.
+enable-log-requests: true
+enable-log-outputs: true
+enable-log-deltas: true
+max-log-len: 10000

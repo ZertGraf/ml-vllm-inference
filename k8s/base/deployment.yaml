@@ -1,0 +1,153 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  labels:
+    app.kubernetes.io/name: vllm
+spec:
+  replicas: 1
+  # ReadWriteOnce volume + a memory-hungry pod: never run old and new side by side
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vllm
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        # makes the PVC writable for the unprivileged downloader
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+
+      initContainers:
+        # Bonus 2: weights are fetched by a separate, tiny, rootless image.
+        # First start: downloads into the PVC. Later starts: sees the completeness
+        # marker, prints "already present, skipping download", touches no network.
+        - name: fetch-model
+          image: vllm-model-downloader:1.0.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: vllm-env
+          env:
+            # optional: empty/absent token means anonymous download of public models
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vllm-secrets
+                  key: HF_TOKEN
+                  optional: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: tmp
+              mountPath: /tmp
+
+      containers:
+        - name: vllm
+          image: vllm-cpu:0.32.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: vllm-env
+          env:
+            # the Bearer token clients must send; read by vLLM and by the auth guard
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vllm-secrets
+                  key: VLLM_API_KEY
+          ports:
+            - name: http
+              containerPort: 8000
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # /health is the only unauthenticated path (see vllm_hardening.guard)
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 120   # up to 10 minutes for the first start
+          # ready = warm-up finished (kernels compiled) and /health answers
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/ready.sh"]
+            periodSeconds: 10
+            timeoutSeconds: 8
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 5
+          # Memory: ~3.2 GiB resident (API server 0.8 + engine core 0.5 + worker
+          # 1.9) plus page cache of the checkpoint and libraries. vLLM's start-up
+          # check subtracts the cgroup's memory.current, page cache included, from
+          # the limit, so the limit needs ~1.5 GiB of head-room (README, "Findings").
+          # No CPU limit: CFS throttling hurts pinned OpenMP threads.
+          resources:
+            requests:
+              cpu: "2"
+              memory: 3Gi
+            limits:
+              memory: 5Gi
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+            - name: serve-config
+              mountPath: /etc/vllm
+              readOnly: true
+            - name: jit-cache
+              mountPath: /cache
+            - name: tmp
+              mountPath: /tmp
+            - name: dshm
+              mountPath: /dev/shm
+
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: vllm-models
+        - name: jit-cache
+          persistentVolumeClaim:
+            claimName: vllm-jit-cache
+        - name: serve-config
+          configMap:
+            name: vllm-serve-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        # shared memory for the engine <-> API server IPC (the 64 MiB default is too small)
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi

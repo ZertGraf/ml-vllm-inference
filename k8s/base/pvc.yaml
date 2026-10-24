@@ -1,0 +1,24 @@
+# Model cache. Written once by the initContainer, mounted read-only by vLLM.
+# The default StorageClass is used; set `storageClassName` in an overlay if the
+# cluster has no default one.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-models
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+# Compiled Triton-CPU kernels (see TRITON_CACHE_DIR in configmap-env.yaml).
+# Losing this volume only costs one slow start.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-jit-cache
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

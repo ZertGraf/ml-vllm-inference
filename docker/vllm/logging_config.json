@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "filters": {
+    "privacy": {"()": "vllm_hardening.logfilter.PrivacyFilter"}
+  },
+  "formatters": {
+    "safe": {
+      "()": "vllm_hardening.logfilter.PrivacyFormatter",
+      "fmt": "(%(vllm_process_name)s pid=%(process)d) %(levelname)s %(asctime)s [%(filename)s:%(lineno)d] %(message)s",
+      "datefmt": "%m-%d %H:%M:%S"
+    }
+  },
+  "handlers": {
+    "out": {
+      "class": "vllm_hardening.logfilter.SafeStreamHandler",
+      "stream": "ext://sys.stdout",
+      "level": "INFO",
+      "formatter": "safe",
+      "filters": ["privacy"]
+    },
+    "err": {
+      "class": "vllm_hardening.logfilter.SafeStreamHandler",
+      "stream": "ext://sys.stderr",
+      "level": "WARNING",
+      "formatter": "safe",
+      "filters": ["privacy"]
+    }
+  },
+  "loggers": {
+    "vllm": {"handlers": ["out"], "level": "INFO", "propagate": false},
+    "vllm_hardening": {"handlers": ["out"], "level": "INFO", "propagate": false},
+    "uvicorn": {"handlers": ["out"], "level": "INFO", "propagate": false},
+    "uvicorn.error": {"handlers": ["out"], "level": "INFO", "propagate": false},
+    "uvicorn.access": {"handlers": ["out"], "level": "INFO", "propagate": false}
+  },
+  "root": {"handlers": ["err"], "level": "WARNING"}
+}

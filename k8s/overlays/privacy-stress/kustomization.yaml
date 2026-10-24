@@ -1,0 +1,23 @@
+# Privacy stress test (NOT for production): turns vLLM's own content logging ON
+# and the log level to DEBUG through the ConfigMaps, to prove that the log filter
+# shipped in the image still keeps prompts/outputs out of stdout/stderr.
+#   kubectl apply -k k8s/overlays/privacy-stress && kubectl -n vllm rollout restart deploy/vllm
+# Back to normal:
+#   kubectl apply -k k8s/overlays/minikube && kubectl -n vllm rollout restart deploy/vllm
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../minikube
+configMapGenerator:
+  - name: vllm-serve-config
+    behavior: replace
+    files:
+      - serve.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: vllm-env
+    behavior: merge
+    literals:
+      - VLLM_LOGGING_LEVEL=DEBUG
+    options:
+      disableNameSuffixHash: true

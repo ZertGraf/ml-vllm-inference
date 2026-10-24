@@ -1,0 +1,28 @@
+# Environment of both containers (envFrom). Change a value, `kubectl apply -k`
+# (or `kubectl edit configmap vllm-env`) and `kubectl rollout restart` the
+# deployment - no image rebuild needed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-env
+data:
+  # ---- which model, and where it lives on the PVC (used by the downloader and by vLLM)
+  MODEL_REPO_ID: "Qwen/Qwen2.5-0.5B-Instruct"
+  # branch, tag or commit sha; a sha makes the deployment reproducible
+  MODEL_REVISION: "7ae557604adf67be50417f59c2c2f167def9a775"
+  MODEL_LOCAL_DIR: "/models/qwen2.5-0.5b-instruct"
+  # optional: Hugging Face mirror, e.g. "https://hf-mirror.example"
+  # HF_ENDPOINT: ""
+
+  # ---- vLLM CPU backend (https://docs.vllm.ai/en/v0.32.0/getting_started/installation/cpu/)
+  # CPU ids the OpenMP threads are pinned to. The Docker/WSL2 VM exposes 8 cores x 2
+  # hyper-threads as (0,1) (2,3) ...; one thread per physical core measured fastest
+  # (README). Leave a core free for the API server. Use "auto" on bare-metal NUMA hosts.
+  VLLM_CPU_OMP_THREADS_BIND: "0,2,4,6,8"
+  # Model runner V1: the V2 runner's Triton-CPU sampler kernel did not finish compiling
+  # within minutes on an AVX2-only CPU (README, "Findings").
+  VLLM_USE_V2_MODEL_RUNNER: "0"
+  # JIT kernel cache on its own small PVC: restarts skip the ~1 minute compile
+  TRITON_CACHE_DIR: "/cache/triton"
+  # keep the logging level at INFO; the privacy filter ignores lower levels anyway
+  VLLM_LOGGING_LEVEL: "INFO"

@@ -1,0 +1,22 @@
+# secrets and local state
+secrets.env
+*.env
+!*.env.example
+.env*
+!.env.example
+
+# model weights and caches
+models/
+*.safetensors
+*.gguf
+*.bin
+__pycache__/
+*.pyc
+.cache/
+.venv/
+
+# local scratch / results that embed tokens
+loadtest/results/*.tmp
+
+# generated fallback archive of the submission
+submission/*.zip

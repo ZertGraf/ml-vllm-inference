@@ -1,0 +1,34 @@
+# Arguments of `vllm serve`, mounted at /etc/vllm/serve.yaml and passed with
+# `--config` by the image entrypoint (CLI > config file > defaults).
+# Keys are the long option names without the leading dashes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-serve-config
+data:
+  serve.yaml: |
+    host: 0.0.0.0
+    port: 8000
+    served-model-name: qwen2.5-0.5b-instruct
+
+    # --- CPU inference
+    dtype: bfloat16
+    max-model-len: 4096
+    max-num-seqs: 8
+    max-num-batched-tokens: 2048
+    # KV cache in bytes (256 MiB = ~21k tokens for this model). The legacy
+    # VLLM_CPU_KVCACHE_SPACE variable only takes whole GiB.
+    kv-cache-memory-bytes: 268435456
+    # no torch.compile/inductor on CPU: avoids a long start and extra memory
+    enforce-eager: true
+
+    # --- logging / privacy
+    # content-free per-request log line + deny-by-default Bearer auth (see README)
+    middleware: vllm_hardening.stack.HardeningMiddleware
+    # token usage in every response, including streams (read by the request log)
+    enable-force-include-usage: true
+    # the middleware logs requests; uvicorn's access log would duplicate it
+    disable-uvicorn-access-log: true
+    # vLLM's own content logging: off. Even if someone turns these on, the log
+    # filter in the image suppresses the content (verified, see VERIFICATION.md).
+    enable-log-requests: false

@@ -1,0 +1,7 @@
+**/__pycache__
+**/*.pyc
+.git
+k8s/overlays/*/secrets.env
+**/secrets.env
+**/*.safetensors
+models/
