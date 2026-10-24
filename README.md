@@ -103,7 +103,7 @@ k8s/overlays/privacy-stress/ test-only overlay: vLLM content logging + DEBUG for
 loadtest/                    loadtest.py (HTTP, streaming), engine_bench.py (offline), results/*.json
 scripts/                     build-images.sh, make-secrets.sh, verify-deployment.sh, compile-requirements.sh,
                              check-pins.py, engine-bench.sh, make-submission.sh, check-submission.sh
-submission/                  the file for the submission form (repo link placeholder)
+submission/                  the submission file with the repository link
 VERIFICATION.md              every check that was run, with commands and observed output
 ```
 
@@ -316,7 +316,8 @@ n = 6-24 requests per row, so p95 is approximate. Throughput columns are over th
 (wall time), `in tok/s` counts prompt tokens.
 
 The same command was repeated after the whole cluster had been deleted and rebuilt from the README
-(`loadtest/results/run2-rebuilt-cluster.json`); the numbers agree within about 15%:
+(`loadtest/results/run2-rebuilt-cluster.json`); 48 of the 56 values agree within 15%, the largest
+gaps are on short prompts at concurrency 2 and 4 (up to +34% for p95 latency):
 
 | profile | conc | reqs (ok/fail) | TTFT p50 (ms) | TTFT p95 (ms) | latency p50 (ms) | out tok/s | in tok/s |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -329,7 +330,7 @@ The same command was repeated after the whole cluster had been deleted and rebui
 | long | 4 | 12/0 | 54467 | 71760 | 78579 | 1.6 | 52.9 |
 | long | 8 | 24/0 | 75137 | 125031 | 157675 | 1.6 | 52.2 |
 
-Docker Desktop on the host was stopped by the machine's operator while the `long` / concurrency 8
+Docker Desktop on the host stopped while the `long` / concurrency 8
 level of that run was in progress (the level failed with connection errors); after the cluster was
 started again, only that level was re-run (`loadtest/results/run2-long-c8-rerun.json`) and merged
 into the table above. `VERIFICATION.md` shows both outputs.
@@ -453,6 +454,6 @@ Things that are not obvious from the docs and cost time; each was reproduced.
 ## Clean-up
 
 ```bash
-kubectl delete -k k8s/overlays/minikube      # keeps nothing but the PVC data inside the cluster
+kubectl delete -k k8s/overlays/minikube      # removes everything, including the namespace and the model PVC
 minikube stop -p vllm-test                     # or: minikube delete -p vllm-test
 ```

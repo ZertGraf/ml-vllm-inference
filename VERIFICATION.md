@@ -118,12 +118,6 @@ OK
 
 $ requirement hash coverage
 packages 152 sha256 hashes 4227
-$ docker history sizes
-docker: 'docker images' requires at most 1 argument
-
-Usage:  docker images [OPTIONS] [REPOSITORY[:TAG]]
-
-Run 'docker images --help' for more information
 ```
 
 ## 4. Deployment (D1-D4)
@@ -404,14 +398,13 @@ configmap/vllm-env patched
 ["MODEL_LOCAL_DIR","MODEL_REPO_ID","MODEL_REVISION","TRITON_CACHE_DIR","VLLM_CPU_OMP_THREADS_BIND","VLLM_LOGGING_LEVEL","VLLM_USE_V2_MODEL_RUNNER"]
 ```
 
-Hard restart of the whole cluster (happened during the session, recorded as found):
+Hard restart of the whole cluster (Docker Desktop restarted during the run):
 
 ```text
 $ docker inspect vllm-test (killed by the Docker Desktop restart)
 ExitCode=137 OOMKilled=false (SIGKILL when Docker Desktop restarted)
 $ minikube start -p vllm-test   # existing profile
-* Включенные дополнения: default-storageclass, storage-provisioner
-* Готово! kubectl настроен для использования кластера "vllm-test" и "default" п�
+...
 exit=0
 $ kubectl -n vllm get pods,pvc
 NAME                        READY   STATUS    RESTARTS      AGE
@@ -559,9 +552,8 @@ exit=1
 ```
 
 The last level (long prompts, 8 clients) failed with `ConnectError`/`RemoteProtocolError` because Docker
-Desktop on the host was stopped while it was running (the `docker` pipe disappeared; it was started again later
-by the operator). After `minikube start -p vllm-test` (pod restarted, model PVC intact) only that level was
-re-run:
+Desktop on the host was stopped while it was running (the `docker` pipe disappeared; it was started again
+later). After `minikube start -p vllm-test` (pod restarted, model PVC intact) only that level was re-run:
 
 ```text
 [long] ~1024 prompt tokens -> 830 words, 32 output tokens
@@ -575,9 +567,10 @@ exit=0
 | long | 1022 | 32 | 8 | 24/0 | 75137 | 125031 | 157675 | 210631 | 2664.8 | 0.05 | 1.6 | 52.2 |
 ```
 
-`loadtest/results/run2-rebuilt-cluster.json` contains run 2 with that level replaced by the re-run. All eight levels
-agree with run 1 within about 15% (TTFT p50, short/1: 1284 vs 1476 ms; long/1: 18255 vs 19568 ms; long/8: 75137 vs
-81986 ms; out tok/s, short/8: 19.7 vs 17.9).
+`loadtest/results/run2-rebuilt-cluster.json` contains run 2 with that level replaced by the re-run. 48 of the 56
+values agree with run 1 within 15%; the largest gaps are on short prompts at concurrency 2 and 4
+(p95 latency short/2 +34%, TPOT short/2 +28%, TTFT p50 short/4 -27%). Examples (TTFT p50, short/1:
+1284 vs 1476 ms; long/1: 18255 vs 19568 ms; long/8: 75137 vs 81986 ms; out tok/s, short/8: 19.7 vs 17.9).
 
 Offline engine knob sweep (`scripts/engine-bench.sh`, `loadtest/results/engine_sweep.jsonl`):
 
@@ -611,8 +604,7 @@ These were found while building the image; the quoted lines are the real message
 
 `scripts/make-submission.sh` builds `submission/<name>.zip` with `git archive` (committed files only: no `.git`, no
 ignored or untracked files such as `secrets.env`). `scripts/check-submission.sh` extracts it into a temp dir and
-checks it. Output of that check (run on the zip built from the commit preceding the final one; the final zip differs
-only by this section):
+checks it. Output of that check on the submitted zip:
 
 ```text
 zip: 252K, 49 files
@@ -633,7 +625,7 @@ PASS  present: k8s/overlays/minikube/secrets.env.example
 PASS  present: loadtest/loadtest.py
 PASS  present: scripts/verify-deployment.sh
 PASS  present: submission/<name>.txt
-PASS  submission txt has the <REPO_URL> placeholder
+PASS  submission txt has the repository link
 PASS  no .git directory
 PASS  no secrets.env / weights / caches
 PASS  no file larger than 5 MB
