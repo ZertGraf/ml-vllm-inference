@@ -26,7 +26,7 @@ for f in README.md VERIFICATION.md docker/vllm/Dockerfile docker/vllm/requiremen
   [ -f "${root}/${f}" ] && ok "present: ${f}" || bad "missing: ${f}"
 done
 [ -f "${root}/submission/${name}.txt" ] && ok "present: submission/<name>.txt" || bad "missing: submission/<name>.txt"
-grep -q '<REPO_URL>' "${root}/submission/${name}.txt" && ok "submission txt has the <REPO_URL> placeholder" || bad "no <REPO_URL> placeholder"
+grep -qE '^Repository: https://github.com/[^[:space:]]+$' "${root}/submission/${name}.txt" && ok "submission txt has the repository link" || bad "no repository link in the submission txt"
 
 [ ! -e "${root}/.git" ] && ok "no .git directory" || bad ".git inside the zip"
 if find "${root}" \( -name 'secrets.env' -o -name '*.safetensors' -o -name '*.gguf' -o -name '*.bin' -o -name '__pycache__' -o -name '*.pyc' -o -name '.env' \) | grep -q .; then

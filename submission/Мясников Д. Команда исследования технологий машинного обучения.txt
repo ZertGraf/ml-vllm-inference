@@ -1,4 +1,4 @@
-Repository: <REPO_URL>
+Repository: https://github.com/ZertGraf/ml-vllm-inference
 
 Candidate: Dmitry Myasnikov (Myasnikov D.), ML technology research team - Data Engineer intern test task.
 Solution: vLLM 0.32.0 (CPU only) with Qwen2.5-0.5B-Instruct on Minikube; rootless images with hash-pinned dependencies, k8s manifests with kustomize (kubectl apply -k), Secret/ConfigMap/PVC configuration.
