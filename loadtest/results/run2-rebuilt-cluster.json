@@ -150,24 +150,22 @@
       "profile": "long",
       "concurrency": 8,
       "requests": 24,
-      "ok": 0,
-      "failed": 24,
-      "wall_s": 71.34138510000048,
-      "req_per_s": 0.0,
-      "out_tok_per_s": 0.0,
-      "in_tok_per_s": 0.0,
-      "ttft_p50_ms": NaN,
-      "ttft_p95_ms": NaN,
-      "latency_p50_ms": NaN,
-      "latency_p95_ms": NaN,
-      "tpot_ms": NaN,
-      "prompt_tokens_mean": 0.0,
-      "completion_tokens_mean": 0.0,
-      "errors": [
-        "ConnectError",
-        "RemoteProtocolError"
-      ]
+      "ok": 24,
+      "failed": 0,
+      "wall_s": 469.88869859999977,
+      "req_per_s": 0.05107592515314011,
+      "out_tok_per_s": 1.6344296049004836,
+      "in_tok_per_s": 52.18895468876895,
+      "ttft_p50_ms": 75137.21349999832,
+      "ttft_p95_ms": 125030.59658500225,
+      "latency_p50_ms": 157674.84724999848,
+      "latency_p95_ms": 210631.24685000238,
+      "tpot_ms": 2664.8064759408376,
+      "prompt_tokens_mean": 1021.7916666666666,
+      "completion_tokens_mean": 32.0,
+      "errors": []
     }
   ],
-  "markdown": "| profile | prompt tok | out tok | conc | reqs (ok/fail) | TTFT p50 (ms) | TTFT p95 (ms) | latency p50 (ms) | latency p95 (ms) | TPOT (ms) | req/s | out tok/s | in tok/s |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n| short | 70 | 64 | 1 | 6/0 | 1284 | 1349 | 5365 | 5623 | 63.2 | 0.19 | 12.2 | 13.3 |\n| short | 71 | 64 | 2 | 6/0 | 2269 | 3024 | 10126 | 12769 | 131.5 | 0.19 | 12.1 | 13.4 |\n| short | 69 | 64 | 4 | 12/0 | 3888 | 5883 | 14877 | 17337 | 180.3 | 0.26 | 16.6 | 18.0 |\n| short | 70 | 64 | 8 | 24/0 | 9774 | 10364 | 26033 | 26180 | 272.0 | 0.31 | 19.7 | 21.4 |\n| long | 1022 | 32 | 1 | 6/0 | 18255 | 18989 | 20171 | 21040 | 63.8 | 0.05 | 1.7 | 53.9 |\n| long | 1031 | 32 | 2 | 6/0 | 27352 | 37348 | 39943 | 39987 | 387.5 | 0.05 | 1.6 | 52.1 |\n| long | 1030 | 32 | 4 | 12/0 | 54467 | 71760 | 78579 | 93904 | 974.1 | 0.05 | 1.6 | 52.9 |\n| long | 0 | 0 | 8 | 0/24 | - | - | - | - | - | 0.00 | 0.0 | 0.0 |"
+  "markdown": "| profile | prompt tok | out tok | conc | reqs (ok/fail) | TTFT p50 (ms) | TTFT p95 (ms) | latency p50 (ms) | latency p95 (ms) | TPOT (ms) | req/s | out tok/s | in tok/s |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n| short | 70 | 64 | 1 | 6/0 | 1284 | 1349 | 5365 | 5623 | 63.2 | 0.19 | 12.2 | 13.3 |\n| short | 71 | 64 | 2 | 6/0 | 2269 | 3024 | 10126 | 12769 | 131.5 | 0.19 | 12.1 | 13.4 |\n| short | 69 | 64 | 4 | 12/0 | 3888 | 5883 | 14877 | 17337 | 180.3 | 0.26 | 16.6 | 18.0 |\n| short | 70 | 64 | 8 | 24/0 | 9774 | 10364 | 26033 | 26180 | 272.0 | 0.31 | 19.7 | 21.4 |\n| long | 1022 | 32 | 1 | 6/0 | 18255 | 18989 | 20171 | 21040 | 63.8 | 0.05 | 1.7 | 53.9 |\n| long | 1031 | 32 | 2 | 6/0 | 27352 | 37348 | 39943 | 39987 | 387.5 | 0.05 | 1.6 | 52.1 |\n| long | 1030 | 32 | 4 | 12/0 | 54467 | 71760 | 78579 | 93904 | 974.1 | 0.05 | 1.6 | 52.9 |\n| long | 1022 | 32 | 8 | 24/0 | 75137 | 125031 | 157675 | 210631 | 2664.8 | 0.05 | 1.6 | 52.2 |",
+  "note": "The 'long' / concurrency 8 level of the original run failed with ConnectError because Docker Desktop was stopped on the host during it; that single level was re-run afterwards on the same restarted cluster (loadtest/results/run2-long-c8-rerun.json) and merged here."
 }

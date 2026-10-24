@@ -57,6 +57,7 @@ kubelet reports the whole VM as capacity.
 | C2 | `rollout restart` with an unreachable `HF_ENDPOINT` | pass: skip + normal start + chat works |
 | C3 | the vLLM container has `HF_HUB_OFFLINE=1`, no outbound connections | pass |
 | C4 | node container SIGKILLed by a Docker Desktop restart (exit 137, not OOM); `minikube start` again: PVC data intact, download skipped, pod Ready again | pass |
+| R1 | full `scripts/verify-deployment.sh` again after the cluster had been restarted twice (pod restarts: 2; logs of previous containers are scanned too) | pass |
 | K1 | ConfigMap `max-model-len` 4096 -> 2048, restart, observe | pass: `/v1/models` reports 2048 |
 | L1 | load test (README command), TTFT / latency / throughput | pass, section 8 |
 | S1 | submission file and fallback zip, extracted and checked | pass, section 10 |
@@ -430,6 +431,57 @@ $ kubectl -n vllm logs deploy/vllm -c vllm | grep warmup
 [warmup] 12:00:26 warm-up complete; ready
 ```
 
+After the second restart (Docker Desktop had been stopped on the host again), the real state was re-checked and the whole verification script was run once more (R1):
+
+```text
+$ minikube status -p vllm-test
+vllm-test
+type: Control Plane
+host: Running
+kubelet: Running
+apiserver: Running
+kubeconfig: Configured
+$ kubectl -n vllm get pods,pvc
+NAME                        READY   STATUS    RESTARTS      AGE
+pod/vllm-648b747db7-r6rl5   1/1     Running   2 (12m ago)   4h13m
+
+NAME                                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STO
+persistentvolumeclaim/vllm-jit-cache   Bound    pvc-d0f7ed26-dff3-4eb5-92f5-925089a3ac54   1Gi        RWO            sta
+persistentvolumeclaim/vllm-models      Bound    pvc-2a994193-93c4-4057-bf08-6f5ebd3ec4ca   5Gi        RWO            sta
+$ scripts/verify-deployment.sh   (after two cluster restarts)
+== authentication
+PASS  GET /health without token (public, used by probes) -> HTTP 200
+PASS  GET /v1/models without token -> HTTP 401
+PASS  GET /v1/models with wrong token -> HTTP 401
+PASS  GET /v1/models with correct token -> HTTP 200
+      model: qwen2.5-0.5b-instruct max_model_len=4096
+PASS  POST /invocations without token (open in stock vLLM) -> HTTP 401
+PASS  POST /pause without token (open in stock vLLM) -> HTTP 401
+PASS  GET /metrics without token -> HTTP 401
+== inference
+PASS  chat completion (non-stream) -> HTTP 200
+      answer: CANARY-OUT-16212f3a6b56
+      usage : {"prompt_tokens":78,"total_tokens":96,"completion_tokens":18,"prompt_tokens_details":null,"completion_tokens_details":null}
+PASS  model echoed the output canary (canary check is not vacuous)
+PASS  chat completion (stream) -> HTTP 200
+PASS  stream terminated with [DONE]
+== error paths (every payload carries a canary)
+PASS  prompt longer than max-model-len -> HTTP 400
+PASS  malformed JSON body -> HTTP 400
+PASS  wrong field type -> HTTP 400
+PASS  unknown model name -> HTTP 404
+PASS  messages is a string, not a list -> HTTP 400
+PASS  invalid json_schema -> HTTP 400
+PASS  aborted stream sent (client disconnect)
+== log scan (all containers, current and previous)
+      scanned 450 log lines
+PASS  no canary (prompt / output / stop / error payloads) in any log
+PASS  generated answer text not in the logs
+PASS  request-fact lines present (141)
+
+ALL CHECKS PASSED
+```
+
 ## 7. ConfigMap change without rebuilding (K1)
 
 ```text
@@ -455,7 +507,9 @@ deployment "vllm" successfully rolled out
 Command (README, "Load testing"), through `kubectl port-forward`:
 
 ```text
-python loadtest/loadtest.py --base-url http://127.0.0.1:18000 --api-key "$VLLM_API_KEY"   --profile short:64:64 --profile long:1024:32 --concurrency 1,2,4,8   --requests-per-worker 3 --min-requests 6 --warmup 2 --json-out loadtest/results/baseline.json
+python loadtest/loadtest.py --base-url http://127.0.0.1:18000 --api-key "$VLLM_API_KEY" \
+  --profile short:64:64 --profile long:1024:32 --concurrency 1,2,4,8 \
+  --requests-per-worker 3 --min-requests 6 --warmup 2 --json-out loadtest/results/baseline.json
 ```
 
 **Run 1** (`loadtest/results/baseline.json`; the final image and manifests on the first deployment, before the
@@ -504,10 +558,26 @@ restarted; the run's progress lines, exactly as printed:
 exit=1
 ```
 
-The last level (long prompts, 8 clients) failed with `ConnectError`/`RemoteProtocolError` because Docker Desktop
-itself became unavailable on the host while it was running (the `docker` pipe disappeared; the cause was not
-established). The other seven levels agree with run 1 within about 15% (TTFT p50, short/1: 1284 vs 1476 ms;
-long/1: 18255 vs 19568 ms; out tok/s, short/8: 19.7 vs 17.9).
+The last level (long prompts, 8 clients) failed with `ConnectError`/`RemoteProtocolError` because Docker
+Desktop on the host was stopped while it was running (the `docker` pipe disappeared; it was started again later
+by the operator). After `minikube start -p vllm-test` (pod restarted, model PVC intact) only that level was
+re-run:
+
+```text
+[long] ~1024 prompt tokens -> 830 words, 32 output tokens
+[long] conc=8: 24/24 ok, TTFT p50 75137 ms, 1.6 out tok/s
+exit=0
+```
+
+```text
+| profile | prompt tok | out tok | conc | reqs (ok/fail) | TTFT p50 (ms) | TTFT p95 (ms) | latency p50 (ms) | latency p95 (ms) | TPOT (ms) | req/s | out tok/s | in tok/s |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| long | 1022 | 32 | 8 | 24/0 | 75137 | 125031 | 157675 | 210631 | 2664.8 | 0.05 | 1.6 | 52.2 |
+```
+
+`loadtest/results/run2-rebuilt-cluster.json` contains run 2 with that level replaced by the re-run. All eight levels
+agree with run 1 within about 15% (TTFT p50, short/1: 1284 vs 1476 ms; long/1: 18255 vs 19568 ms; long/8: 75137 vs
+81986 ms; out tok/s, short/8: 19.7 vs 17.9).
 
 Offline engine knob sweep (`scripts/engine-bench.sh`, `loadtest/results/engine_sweep.jsonl`):
 
@@ -545,5 +615,30 @@ checks it. Output of that check (run on the zip built from the commit preceding 
 only by this section):
 
 ```text
-(pending)
+zip: 252K, 48 files
+PASS  present: README.md
+PASS  present: VERIFICATION.md
+PASS  present: docker/vllm/Dockerfile
+PASS  present: docker/vllm/requirements.txt
+PASS  present: docker/downloader/Dockerfile
+PASS  present: docker/downloader/requirements.txt
+PASS  present: docker/downloader/download_model.py
+PASS  present: docker/vllm/logging_config.json
+PASS  present: docker/vllm/vllm_hardening/logfilter.py
+PASS  present: k8s/base/kustomization.yaml
+PASS  present: k8s/base/deployment.yaml
+PASS  present: k8s/base/configmap-serve.yaml
+PASS  present: k8s/overlays/minikube/kustomization.yaml
+PASS  present: k8s/overlays/minikube/secrets.env.example
+PASS  present: loadtest/loadtest.py
+PASS  present: scripts/verify-deployment.sh
+PASS  present: submission/<name>.txt
+PASS  submission txt has the <REPO_URL> placeholder
+PASS  no .git directory
+PASS  no secrets.env / weights / caches
+PASS  no file larger than 5 MB
+PASS  the local API token is not in the zip
+PASS  no Hugging Face token pattern
+
+SUBMISSION CHECK PASSED
 ```

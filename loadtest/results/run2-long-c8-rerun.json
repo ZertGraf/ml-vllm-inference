@@ -1,0 +1,36 @@
+{
+  "args": {
+    "base_url": "http://127.0.0.1:18000",
+    "model": "qwen2.5-0.5b-instruct",
+    "profile": [
+      "long:1024:32"
+    ],
+    "concurrency": "8",
+    "requests_per_worker": 3,
+    "min_requests": 6,
+    "warmup": 2,
+    "json_out": "loadtest/results/run2-long-c8-rerun.json"
+  },
+  "results": [
+    {
+      "profile": "long",
+      "concurrency": 8,
+      "requests": 24,
+      "ok": 24,
+      "failed": 0,
+      "wall_s": 469.88869859999977,
+      "req_per_s": 0.05107592515314011,
+      "out_tok_per_s": 1.6344296049004836,
+      "in_tok_per_s": 52.18895468876895,
+      "ttft_p50_ms": 75137.21349999832,
+      "ttft_p95_ms": 125030.59658500225,
+      "latency_p50_ms": 157674.84724999848,
+      "latency_p95_ms": 210631.24685000238,
+      "tpot_ms": 2664.8064759408376,
+      "prompt_tokens_mean": 1021.7916666666666,
+      "completion_tokens_mean": 32.0,
+      "errors": []
+    }
+  ],
+  "markdown": "| profile | prompt tok | out tok | conc | reqs (ok/fail) | TTFT p50 (ms) | TTFT p95 (ms) | latency p50 (ms) | latency p95 (ms) | TPOT (ms) | req/s | out tok/s | in tok/s |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n| long | 1022 | 32 | 8 | 24/0 | 75137 | 125031 | 157675 | 210631 | 2664.8 | 0.05 | 1.6 | 52.2 |"
+}

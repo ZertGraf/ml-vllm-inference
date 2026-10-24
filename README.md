@@ -102,7 +102,8 @@ k8s/overlays/minikube/       secretGenerator (secrets.env.example), local images
 k8s/overlays/privacy-stress/ test-only overlay: vLLM content logging + DEBUG forced on
 loadtest/                    loadtest.py (HTTP, streaming), engine_bench.py (offline), results/*.json
 scripts/                     build-images.sh, make-secrets.sh, verify-deployment.sh, compile-requirements.sh,
-                             check-pins.py, engine-bench.sh, make-submission.sh
+                             check-pins.py, engine-bench.sh, make-submission.sh, check-submission.sh
+submission/                  the file for the submission form (repo link placeholder)
 VERIFICATION.md              every check that was run, with commands and observed output
 ```
 
@@ -326,12 +327,12 @@ The same command was repeated after the whole cluster had been deleted and rebui
 | long | 1 | 6/0 | 18255 | 18989 | 20171 | 1.7 | 53.9 |
 | long | 2 | 6/0 | 27352 | 37348 | 39943 | 1.6 | 52.1 |
 | long | 4 | 12/0 | 54467 | 71760 | 78579 | 1.6 | 52.9 |
+| long | 8 | 24/0 | 75137 | 125031 | 157675 | 1.6 | 52.2 |
 
-The long profile at concurrency 8 is missing from this second run: Docker Desktop on the host went
-down while that level was running (the first run completed it, see the table above). The cause was
-not established; it happened once earlier at a similarly heavy stage, so memory pressure on the
-shared Docker VM is suspected, not proven. If RAM is tight, lower `max-num-seqs` or the client
-concurrency.
+Docker Desktop on the host was stopped by the machine's operator while the `long` / concurrency 8
+level of that run was in progress (the level failed with connection errors); after the cluster was
+started again, only that level was re-run (`loadtest/results/run2-long-c8-rerun.json`) and merged
+into the table above. `VERIFICATION.md` shows both outputs.
 
 Reading the table: the engine is compute-bound. Prompt processing runs at a constant ~50 tokens/s
 and generation saturates at ~18 tokens/s whatever the concurrency, so extra concurrency only
